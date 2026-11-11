@@ -58,29 +58,40 @@ try
         return 0;
     }
 
-    Console.WriteLine("Pulsa Enter para capturar cuando el tablero esté quieto, o q para salir.");
     Console.WriteLine("Mantén el tablero visible en las coordenadas calibradas.");
-    string? pending = null;
+    Console.WriteLine("Mueve la consola fuera del tablero y pulsa Enter para iniciar, o escribe q para salir.");
     while (true)
     {
-        Console.Write("> ");
         string? input = Console.ReadLine();
         if (input is null || input.Trim().Equals("q", StringComparison.OrdinalIgnoreCase))
+            return 0;
+        if (input.Length == 0)
             break;
-        if (input.Length != 0)
-            continue;
+        Console.WriteLine("Pulsa Enter para iniciar, o escribe q para salir.");
+    }
+
+    Console.WriteLine("Revisión automática cada 200 ms. Para salir, pulsa Ctrl+C en la consola.");
+    using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
+    using var stop = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        stop.Cancel();
+    };
+
+    string? pending = null;
+    string? lastStatus = null;
+    List<string>? legalMoves = null;
+    while (!stop.IsCancellationRequested && await timer.WaitForNextTickAsync())
+    {
+        if (stop.IsCancellationRequested)
+            break;
 
         using var board = BoardVision.Capture();
         char[] observed = vision.Recognize(board, blackAtBottom);
         if (Array.IndexOf(observed, '?') >= 0)
         {
-            Console.WriteLine("Hay casillas que no pude reconocer. Comprueba la vista y vuelve a capturar.");
-            continue;
-        }
-
-        if (pending is not null && observed.AsSpan().SequenceEqual(position.Pieces))
-        {
-            Console.WriteLine($"Pendiente tu jugada: {pending}.");
+            ShowStatus("Hay casillas que no pude reconocer. Esperando una vista clara del tablero.");
             continue;
         }
 
@@ -88,29 +99,33 @@ try
         {
             if (observed.AsSpan().SequenceEqual(position.Pieces))
             {
-                Console.WriteLine("Aún no se ve una jugada del rival.");
+                ShowStatus("Esperando la jugada del rival.");
                 continue;
             }
 
-            string? rival = position.MatchMove(observed, await engine.LegalMoves(position));
+            legalMoves ??= await engine.LegalMoves(position);
+            string? rival = position.MatchMove(observed, legalMoves);
             if (rival is null)
             {
-                Console.WriteLine("La captura no coincide con una jugada legal del rival. El historial se conserva.");
-                if (pending is not null)
-                    Console.WriteLine($"Comprueba que jugaste exactamente {pending}.");
+                ShowStatus(pending is null
+                    ? "Esperando una jugada rival que coincida con el historial."
+                    : $"Esperando una posición compatible con tu jugada {pending} y la respuesta del rival.");
                 continue;
             }
             position.Play(rival);
+            legalMoves = null;
             pending = null;
             Console.WriteLine($"Jugada del rival: {rival}");
         }
         else if (!observed.AsSpan().SequenceEqual(position.Pieces))
         {
-            Console.WriteLine("La captura no coincide con el historial inicial.");
+            ShowStatus("Esperando que el tablero coincida con la posición guardada.");
             continue;
         }
 
         string? recommendation = await engine.BestMove(position, 100);
+        if (stop.IsCancellationRequested)
+            break;
         if (recommendation is null)
         {
             Console.WriteLine("La posición no tiene jugadas legales.");
@@ -119,16 +134,15 @@ try
         using var currentBoard = BoardVision.Capture();
         if (!vision.Recognize(currentBoard, blackAtBottom).AsSpan().SequenceEqual(position.Pieces))
         {
-            Console.WriteLine("La vista del tablero cambió durante la búsqueda. Vuelve a capturar.");
+            ShowStatus("La vista cambió durante la búsqueda. Esperando que se estabilice.");
             continue;
         }
 
         Console.WriteLine($"Jugada de Stockfish: {recommendation}");
         try
         {
-            await BoardMouse.Play(recommendation, blackAtBottom);
-            if (recommendation.Length == 5)
-                Console.WriteLine($"Completa la promoción eligiendo la pieza indicada por «{recommendation[4]}» (q dama, r torre, b alfil, n caballo).");
+            if (!await BoardMouse.Play(recommendation, blackAtBottom))
+                Console.WriteLine($"No pude detectar el selector. Si sigue abierto, completa {recommendation} manualmente (q dama, n caballo, r torre, b alfil).");
         }
         catch (Win32Exception error)
         {
@@ -137,10 +151,18 @@ try
         }
         position.Play(recommendation);
         pending = recommendation;
-        Console.WriteLine("Vuelve a la consola y pulsa Enter cuando responda el rival.");
+        lastStatus = null;
     }
 
     return 0;
+
+    void ShowStatus(string status)
+    {
+        if (status == lastStatus)
+            return;
+        Console.WriteLine(status);
+        lastStatus = status;
+    }
 }
 catch (Exception error)
 {

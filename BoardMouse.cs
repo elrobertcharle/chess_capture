@@ -4,14 +4,55 @@ using System.Runtime.InteropServices;
 
 static class BoardMouse
 {
-    public static async Task Play(string move, bool blackAtBottom)
+    public static async Task<bool> Play(string move, bool blackAtBottom)
     {
         Point from = BoardVision.SquareCenter(move[0], move[1], blackAtBottom);
         Point to = BoardVision.SquareCenter(move[2], move[3], blackAtBottom);
         Click(from);
         await Task.Delay(200);
         Click(to);
+        if (move.Length == 4)
+            return true;
+
+        // El selector empieza en la casilla de destino y se extiende hacia el centro.
+        int pieceIndex = "qnrb".IndexOf(move[4]);
+        int rankStep = move[3] == '8' ? -1 : 1;
+        var choices = new Point[4];
+        for (int i = 0; i < choices.Length; i++)
+            choices[i] = BoardVision.SquareCenter(move[2], (char)(move[3] + rankStep * i), blackAtBottom);
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            await Task.Delay(200);
+            using var board = BoardVision.Capture();
+            if (PromotionMenuVisible(board, choices))
+            {
+                Click(choices[pieceIndex]);
+                return true;
+            }
+        }
+        return false;
     }
+
+    private static bool PromotionMenuVisible(Bitmap board, Point[] choices)
+    {
+        // A ambos lados de cada icono se ve el fondo gris de su círculo.
+        int offset = BoardVision.BoardArea.Width / 8 * 3 / 8;
+        foreach (Point center in choices)
+        {
+            int x = center.X - BoardVision.BoardArea.X;
+            int y = center.Y - BoardVision.BoardArea.Y;
+            if (!IsMenuGray(board.GetPixel(x - offset, y)) ||
+                !IsMenuGray(board.GetPixel(x + offset, y)))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool IsMenuGray(Color color) =>
+        color.R is >= 140 and <= 200 &&
+        Math.Abs(color.R - color.G) <= 4 &&
+        Math.Abs(color.R - color.B) <= 4;
 
     private static void Click(Point point)
     {
