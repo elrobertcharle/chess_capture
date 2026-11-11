@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -115,9 +116,28 @@ try
             Console.WriteLine("La posición no tiene jugadas legales.");
             break;
         }
-        Console.WriteLine($"Juega {recommendation} y captura de nuevo cuando responda el rival.");
+        using var currentBoard = BoardVision.Capture();
+        if (!vision.Recognize(currentBoard, blackAtBottom).AsSpan().SequenceEqual(position.Pieces))
+        {
+            Console.WriteLine("La vista del tablero cambió durante la búsqueda. Vuelve a capturar.");
+            continue;
+        }
+
+        Console.WriteLine($"Jugada de Stockfish: {recommendation}");
+        try
+        {
+            await BoardMouse.Play(recommendation, blackAtBottom);
+            if (recommendation.Length == 5)
+                Console.WriteLine($"Completa la promoción eligiendo la pieza indicada por «{recommendation[4]}» (q dama, r torre, b alfil, n caballo).");
+        }
+        catch (Win32Exception error)
+        {
+            Console.WriteLine($"Windows no completó los clics: {error.Message}");
+            Console.WriteLine($"Comprueba el tablero y completa manualmente {recommendation} si falta.");
+        }
         position.Play(recommendation);
         pending = recommendation;
+        Console.WriteLine("Vuelve a la consola y pulsa Enter cuando responda el rival.");
     }
 
     return 0;

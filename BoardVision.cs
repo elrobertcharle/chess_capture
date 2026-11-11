@@ -10,6 +10,14 @@ sealed class BoardVision
     private const int Margin = 8;
     private readonly Dictionary<char, List<byte[]>> templates = new();
 
+    public static Point SquareCenter(char file, char rank, bool blackAtBottom)
+    {
+        int column = blackAtBottom ? 'h' - file : file - 'a';
+        int row = blackAtBottom ? rank - '1' : '8' - rank;
+        return new Point(BoardArea.X + column * SquareSize + SquareSize / 2,
+            BoardArea.Y + row * SquareSize + SquareSize / 2);
+    }
+
     public BoardVision(string referencePath)
     {
         using var reference = new Bitmap(referencePath);
