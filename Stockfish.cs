@@ -1,4 +1,10 @@
 using System.Diagnostics;
+using System.Globalization;
+
+sealed record SearchResult(string Move, string? Evaluation)
+{
+    public string Display => Evaluation is null ? Move : $"{Move} · Evaluación {Evaluation}";
+}
 
 sealed class Stockfish : IDisposable
 {
@@ -37,13 +43,43 @@ sealed class Stockfish : IDisposable
         return moves;
     }
 
-    public async Task<string?> BestMove(Position position, int milliseconds)
+    public async Task<SearchResult?> BestMove(Position position, int milliseconds)
     {
         Send(position.Uci);
         Send($"go movetime {milliseconds}");
-        var response = await ReadUntil("bestmove ");
-        string move = response.Split(' ')[1];
-        return Position.IsMove(move) ? move : null;
+        var evaluations = new Dictionary<string, string>();
+        var response = await ReadUntil("bestmove ", line =>
+        {
+            if (!line.StartsWith("info depth ", StringComparison.Ordinal))
+                return;
+
+            string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            int score = Array.IndexOf(fields, "score");
+            int pv = Array.IndexOf(fields, "pv");
+            if (score < 0 || pv < score + 3 || pv + 1 >= fields.Length ||
+                !int.TryParse(fields[score + 2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                return;
+
+            long whiteScore = position.WhiteToMove ? value : -(long)value;
+            string? evaluation = fields[score + 1] switch
+            {
+                "cp" => (whiteScore / 100m).ToString("+0.00;-0.00;0.00", CultureInfo.CurrentCulture),
+                "mate" => $"mate para {(whiteScore > 0 ? "blancas" : "negras")} en {Math.Abs(whiteScore)}",
+                _ => null
+            };
+            if (evaluation is not null)
+            {
+                string bound = fields[score + 3] switch
+                {
+                    "lowerbound" => position.WhiteToMove ? "≥ " : "≤ ",
+                    "upperbound" => position.WhiteToMove ? "≤ " : "≥ ",
+                    _ => ""
+                };
+                evaluations[fields[pv + 1]] = bound + evaluation;
+            }
+        });
+        string move = response.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1];
+        return Position.IsMove(move) ? new SearchResult(move, evaluations.GetValueOrDefault(move)) : null;
     }
 
     private void Send(string command) => process.StandardInput.WriteLine(command);

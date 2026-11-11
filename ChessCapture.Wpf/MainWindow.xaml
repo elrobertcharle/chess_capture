@@ -1,0 +1,79 @@
+<Window x:Class="ChessCapture.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ChessCapture" Width="460" Height="680" MinWidth="390" MinHeight="600"
+        FontFamily="Segoe UI" FontSize="14" Background="#F2F5F9" Foreground="#172538"
+        Closing="OnClosing">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+    </Window.Resources>
+    <DockPanel Margin="22">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="ChessCapture" FontSize="29" FontWeight="SemiBold" />
+            <TextBlock Text="Mantén esta ventana fuera del tablero calibrado." Margin="0,4,0,16"
+                       Foreground="#465A70" TextWrapping="Wrap" />
+            <Border Background="White" CornerRadius="8" Padding="14">
+                <StackPanel x:Name="GameOptions">
+                    <TextBlock Text="Opciones para iniciar o reiniciar" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,8">
+                        <RadioButton x:Name="WhiteOption" Content="_Blancas" IsChecked="True" Margin="0,0,22,0" />
+                        <RadioButton Content="_Negras" />
+                    </StackPanel>
+                    <Label Target="{Binding ElementName=HistoryInput}" Padding="0,10,0,4"
+                           Content="_Historial UCI (opcional)" />
+                    <TextBox x:Name="HistoryInput" Padding="6" AutomationProperties.HelpText="Jugadas separadas por espacios, por ejemplo e2e4 e7e5." />
+                </StackPanel>
+            </Border>
+            <WrapPanel Margin="0,8,0,12">
+                <Button x:Name="StartButton" Content="_Iniciar" Click="StartGame" FontWeight="SemiBold" />
+                <Button x:Name="CaptureButton" Content="_Empezar desde aquí" Click="StartFromBoard"
+                        AutomationProperties.HelpText="Lee el tablero visible y da el turno al color seleccionado." />
+                <Button x:Name="PauseButton" Content="_Pausar" Click="TogglePause" IsEnabled="False" />
+            </WrapPanel>
+            <TextBlock x:Name="Status" Text="Elige un color para empezar." TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" />
+            <Border Background="White" CornerRadius="8" Padding="12,9" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Tiempo de reacción (ms)" FontWeight="SemiBold" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,10,0">
+                            <Label Content="Mínimo" Target="{Binding ElementName=MinReactionInput}" Padding="0,0,0,2" />
+                            <TextBox x:Name="MinReactionInput" Padding="5" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                            <Label Content="Máximo" Target="{Binding ElementName=MaxReactionInput}" Padding="0,0,0,2" />
+                            <TextBox x:Name="MaxReactionInput" Padding="5" />
+                        </StackPanel>
+                        <Button x:Name="SaveReactionButton" Grid.Column="2" Content="_Guardar"
+                                Click="SaveReaction" VerticalAlignment="Bottom" Margin="0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="12,9" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Evaluación de Stockfish" FontWeight="SemiBold" />
+                    <TextBlock x:Name="EvaluationValue" Text="—" FontSize="20" Margin="0,2,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <TextBlock Text="Actividad" FontWeight="SemiBold" Margin="0,12,0,6" />
+        </StackPanel>
+        <ListBox x:Name="Activity" AutomationProperties.Name="Actividad"
+                 BorderBrush="#CED8E4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>
