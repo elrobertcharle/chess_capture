@@ -29,6 +29,7 @@ try
         }
     }
 
+    var reaction = ReactionSettings.Load(FindAsset("reaction.json"));
     string referencePath = FindAsset("board_position.bmp");
     var vision = new BoardVision(referencePath);
     using var engine = new Stockfish(FindAsset(Path.Combine("stockfish",
@@ -114,6 +115,8 @@ try
             orientationKnown = true;
         }
 
+        string? rival = null;
+        var observedPosition = position;
         if (position.WhiteToMove != whitePlayer)
         {
             if (observed.AsSpan().SequenceEqual(position.Pieces))
@@ -123,7 +126,7 @@ try
             }
 
             legalMoves ??= await engine.LegalMoves(position);
-            string? rival = position.MatchMove(observed, legalMoves);
+            rival = position.MatchMove(observed, legalMoves);
             if (rival is null)
             {
                 ShowStatus(pending is null
@@ -131,10 +134,7 @@ try
                     : $"Esperando una posición compatible con tu jugada {pending} y la respuesta del rival.");
                 continue;
             }
-            position.Play(rival);
-            legalMoves = null;
-            pending = null;
-            Console.WriteLine($"Jugada del rival: {rival}");
+            observedPosition = position.After(rival);
         }
         else if (!observed.AsSpan().SequenceEqual(position.Pieces))
         {
@@ -142,17 +142,13 @@ try
             continue;
         }
 
-        string? recommendation = await engine.BestMove(position, 100);
+        string? recommendation = await engine.BestMove(observedPosition, 100);
         if (stop.IsCancellationRequested)
             break;
-        if (recommendation is null)
-        {
-            Console.WriteLine("La posición no tiene jugadas legales.");
-            break;
-        }
         try
         {
-            await Task.Delay(Random.Shared.Next(200, 2001), stop.Token);
+            int delay = (int)Random.Shared.NextInt64(reaction.MinDelayMs, (long)reaction.MaxDelayMs + 1);
+            await Task.Delay(delay, stop.Token);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -160,7 +156,7 @@ try
         }
 
         using var currentBoard = BoardVision.Capture();
-        if (!vision.Recognize(currentBoard, blackAtBottom).AsSpan().SequenceEqual(position.Pieces))
+        if (!vision.Recognize(currentBoard, blackAtBottom).AsSpan().SequenceEqual(observedPosition.Pieces))
         {
             ShowStatus("La vista cambió durante la búsqueda. Esperando que se estabilice.");
             continue;
@@ -168,6 +164,19 @@ try
 
         if (stop.IsCancellationRequested)
             break;
+
+        if (rival is not null)
+        {
+            position = observedPosition;
+            legalMoves = null;
+            pending = null;
+            Console.WriteLine($"Jugada del rival: {rival}");
+        }
+        if (recommendation is null)
+        {
+            Console.WriteLine("La posición no tiene jugadas legales.");
+            break;
+        }
 
         Console.WriteLine($"Jugada de Stockfish: {recommendation}");
         try

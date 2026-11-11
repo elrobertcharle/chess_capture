@@ -21,6 +21,10 @@ static class BoardMouse
         for (int i = 0; i < choices.Length; i++)
             choices[i] = BoardVision.SquareCenter(move[2], (char)(move[3] + rankStep * i), blackAtBottom);
 
+        // Aparta el cursor del selector para comprobar los círculos sin resaltado.
+        char adjacentFile = move[2] == 'h' ? 'g' : (char)(move[2] + 1);
+        MoveCursor(BoardVision.SquareCenter(adjacentFile, move[3], blackAtBottom));
+
         for (int attempt = 0; attempt < 5; attempt++)
         {
             await Task.Delay(200);
@@ -37,16 +41,29 @@ static class BoardMouse
     private static bool PromotionMenuVisible(Bitmap board, Point[] choices)
     {
         // A ambos lados de cada icono se ve el fondo gris de su círculo.
-        int offset = BoardVision.BoardArea.Width / 8 * 3 / 8;
+        int squareSize = BoardVision.BoardArea.Width / 8;
+        int horizontalOffset = squareSize * 2 / 5;
+        int verticalOffset = squareSize / 8;
         foreach (Point center in choices)
         {
             int x = center.X - BoardVision.BoardArea.X;
             int y = center.Y - BoardVision.BoardArea.Y;
-            if (!IsMenuGray(board.GetPixel(x - offset, y)) ||
-                !IsMenuGray(board.GetPixel(x + offset, y)))
+            if (!HasGrayBackground(board, x - horizontalOffset, y, verticalOffset) ||
+                !HasGrayBackground(board, x + horizontalOffset, y, verticalOffset))
                 return false;
         }
         return true;
+    }
+
+    private static bool HasGrayBackground(Bitmap board, int x, int y, int offset)
+    {
+        int matches = 0;
+        for (int row = y - offset; row <= y + offset; row += offset)
+        {
+            if (IsMenuGray(board.GetPixel(x, row)))
+                matches++;
+        }
+        return matches >= 2;
     }
 
     private static bool IsMenuGray(Color color) =>
@@ -56,8 +73,7 @@ static class BoardMouse
 
     private static void Click(Point point)
     {
-        if (!SetCursorPos(point.X, point.Y))
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+        MoveCursor(point);
 
         const uint leftDown = 0x0002;
         const uint leftUp = 0x0004;
@@ -68,6 +84,12 @@ static class BoardMouse
         ];
         if (SendInput((uint)click.Length, click, Marshal.SizeOf<Input>()) != click.Length)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows no completó el clic.");
+    }
+
+    private static void MoveCursor(Point point)
+    {
+        if (!SetCursorPos(point.X, point.Y))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
     }
 
     // INPUT con la variante MOUSEINPUT. El campo Type es cero para eventos del ratón.

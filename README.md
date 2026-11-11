@@ -8,6 +8,10 @@ ChessCapture reads a digital chessboard and uses Stockfish to play your side.
 - Place the Stockfish executable at `stockfish/stockfish-windows-x86-64-universal.exe`. Git ignores the `stockfish/` folder.
 - Keep the board visible at the calibrated screen position `(753, 187)` and size `1008 × 1008` pixels. Keep the console outside that area.
 
+## Reaction delay
+
+Edit `reaction.json` in the project folder before running `dotnet run`, or beside the executable for a published copy. The app loads the file at startup and chooses a random delay after Stockfish returns a move and before playing it. `MinDelayMs` and `MaxDelayMs` are inclusive and default to 200 and 2000 milliseconds. Set both to the same value for a fixed delay.
+
 ## Play as White
 
 Start with the initial position visible and White at the bottom. Run:

@@ -15,6 +15,15 @@ sealed class Position
         moves.Add(move);
     }
 
+    public Position After(string move)
+    {
+        var next = new Position();
+        Pieces.CopyTo(next.Pieces, 0);
+        next.moves.AddRange(moves);
+        next.Play(move);
+        return next;
+    }
+
     public static bool IsMove(string move) =>
         move.Length is 4 or 5 && IsSquare(move[0], move[1]) && IsSquare(move[2], move[3]) &&
         (move.Length == 4 || "qrbn".Contains(move[4]));
