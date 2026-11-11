@@ -46,6 +46,25 @@ sealed class Position
             : piece;
     }
 
+    public bool TryOrient(char[] observed, IReadOnlyList<string>? legalMoves, out bool blackAtBottom)
+    {
+        blackAtBottom = false;
+        if (MatchesCurrentOrNext())
+            return true;
+
+        Array.Reverse(observed);
+        if (MatchesCurrentOrNext())
+        {
+            blackAtBottom = true;
+            return true;
+        }
+        return false;
+
+        bool MatchesCurrentOrNext() =>
+            observed.AsSpan().SequenceEqual(Pieces) ||
+            (legalMoves is not null && MatchMove(observed, legalMoves) is not null);
+    }
+
     public string? MatchMove(char[] observed, IReadOnlyList<string> legalMoves)
     {
         string? match = null;

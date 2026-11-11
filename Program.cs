@@ -59,15 +59,19 @@ try
     }
 
     Console.WriteLine("Mantén el tablero visible en las coordenadas calibradas.");
-    Console.WriteLine("Mueve la consola fuera del tablero y pulsa Enter para iniciar, o escribe q para salir.");
-    while (true)
+    Console.WriteLine(whitePlayer ? "Juegas con blancas." : "Juegas con negras.");
+    if (!whitePlayer)
     {
-        string? input = Console.ReadLine();
-        if (input is null || input.Trim().Equals("q", StringComparison.OrdinalIgnoreCase))
-            return 0;
-        if (input.Length == 0)
-            break;
-        Console.WriteLine("Pulsa Enter para iniciar, o escribe q para salir.");
+        Console.WriteLine("Mueve la consola fuera del tablero y pulsa Enter para iniciar, o escribe q para salir.");
+        while (true)
+        {
+            string? input = Console.ReadLine();
+            if (input is null || input.Trim().Equals("q", StringComparison.OrdinalIgnoreCase))
+                return 0;
+            if (input.Length == 0)
+                break;
+            Console.WriteLine("Pulsa Enter para iniciar, o escribe q para salir.");
+        }
     }
 
     Console.WriteLine("Revisión automática cada 200 ms. Para salir, pulsa Ctrl+C en la consola.");
@@ -82,6 +86,7 @@ try
     string? pending = null;
     string? lastStatus = null;
     List<string>? legalMoves = null;
+    bool orientationKnown = whitePlayer || blackAtBottom;
     while (!stop.IsCancellationRequested && await timer.WaitForNextTickAsync())
     {
         if (stop.IsCancellationRequested)
@@ -93,6 +98,20 @@ try
         {
             ShowStatus("Hay casillas que no pude reconocer. Esperando una vista clara del tablero.");
             continue;
+        }
+
+        if (!orientationKnown)
+        {
+            bool waitingForWhite = position.WhiteToMove;
+            if (waitingForWhite)
+                legalMoves ??= await engine.LegalMoves(position);
+
+            if (!position.TryOrient(observed, legalMoves, out blackAtBottom))
+            {
+                ShowStatus("Esperando la posición inicial o la primera jugada de blancas.");
+                continue;
+            }
+            orientationKnown = true;
         }
 
         if (position.WhiteToMove != whitePlayer)
@@ -131,12 +150,24 @@ try
             Console.WriteLine("La posición no tiene jugadas legales.");
             break;
         }
+        try
+        {
+            await Task.Delay(Random.Shared.Next(200, 2001), stop.Token);
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            break;
+        }
+
         using var currentBoard = BoardVision.Capture();
         if (!vision.Recognize(currentBoard, blackAtBottom).AsSpan().SequenceEqual(position.Pieces))
         {
             ShowStatus("La vista cambió durante la búsqueda. Esperando que se estabilice.");
             continue;
         }
+
+        if (stop.IsCancellationRequested)
+            break;
 
         Console.WriteLine($"Jugada de Stockfish: {recommendation}");
         try
